@@ -14,7 +14,7 @@ class editEncoder(nn.Module):
     def __init__(self):
         super(editEncoder, self).__init__()
 
-        self.conv1 = self.doubleConv(3,16)      #downsample
+        self.conv1 = self.doubleConv(4,16)      #downsample
         self.conv2 = self.doubleConv(16,32)
         self.conv3 = self.doubleConv(32,64)
         self.conv4 = self.doubleConv(64,128)

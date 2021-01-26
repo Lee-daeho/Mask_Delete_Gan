@@ -1,4 +1,5 @@
 from MaskModule import autoencoder
+from MaskData import MaskDataset
 
 import torch
 from torchvision import datasets, transforms
@@ -18,40 +19,9 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 NUM_EPOCHS = 200
 
 
-class MaskDataset(Dataset):
-    def __init__(self, path, label_path, transform):
-        self.path = path
-        self.label_path = label_path
-        self.img_lists = os.listdir(path)
-        self.img_lists.sort()
-        self.transform = transform
-
-    def __len__(self):
-        return len(self.img_lists)
-
-    def __getitem__(self, idx):
-        image = image_loader(self.path + self.img_lists[idx])
-        label = bin_image_loader(self.label_path + self.img_lists[idx])
-
-        return self.transform(image), self.transform(label)
-
-
-def image_loader(img_name):
-    image = Image.open(img_name).convert('RGB')
-
-    return image
-
-
-def bin_image_loader(img_name):
-    image = Image.open(img_name).convert('1')
-
-    return image
-
-
 transform = transforms.Compose([
     transforms.ToTensor()
 ])
-
 
 def train():
     IMG_FOLDER = './data/imgs/ToDaeHoLee/_masked/'
@@ -64,32 +34,18 @@ def train():
     img_list = os.listdir(IMG_FOLDER)
     # mask_list = os.listdir('./data/masks')
 
-    all_imgs = []
-    labels = []
-
-    # for name in img_list:
-    #     img = image_loader(IMG_FOLDER + name)
-    #     all_imgs.append(img)
-    #     b_mask = bin_image_loader(MASK_FOLDER + name)
-    #     labels.append(b_mask)
-
-
-
-    # all_imgs = np.asarray(all_imgs)
-    # labels = np.asarray(labels)
-    # print(all_imgs.shape)
-    # print(labels.shape)
-
     train_set = MaskDataset(IMG_FOLDER, MASK_FOLDER, transform)
     print(train_set.__len__())
     print('Image Load End')
 
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=128, shuffle=False)
 
+    total_batch = len(train_loader)
+
     model = autoencoder().to(device)
 
     criterion = nn.BCEWithLogitsLoss().to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
 
     for epoch in range(NUM_EPOCHS):
         avg_cost = 0
@@ -107,7 +63,7 @@ def train():
 
             optimizer.step()
 
-            avg_cost += cost/2
+            avg_cost += cost/total_batch
 
         print('[Epoch:{}] cost = {}'.format(epoch + 1, avg_cost))
 
