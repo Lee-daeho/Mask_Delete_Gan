@@ -15,7 +15,7 @@ import numpy as np
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
-NUM_EPOCHS = 200
+NUM_EPOCHS = 50
 
 
 class MaskDataset(Dataset):
@@ -114,8 +114,9 @@ def train():
         if epoch % 9 == 0:
             print('output shape : ', outputs[0])
             print('save img')
-            save_image(outputs[44], RES_IMG_PATH + '/{}.jpg'.format(epoch))
-        if epoch % 99 == 0 and not epoch == 0:
+            for i in range(10):
+                save_image(outputs[i], RES_IMG_PATH + '/{}_{}.jpg'.format(epoch,i))
+        if epoch % 10 == 0 and not epoch == 0:
             torch.save(model, RES_IMG_PATH + '{}_conv_autoencoder.pkl'.format(epoch))
 
 train()
