@@ -8,3 +8,5 @@
 ./results
 /data/
 /results/
+test_results/
+test_results_EPOCH198/
