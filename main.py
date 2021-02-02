@@ -92,7 +92,7 @@ def train(args):
             Y = data[1].to(device)
             ############################## get ground truth data(I_gt) through dataloader. ##############################
 
-
+            print('x : ',X.shape)
             if epoch < 0.4 * NUM_EPOCHS:
                 set_requires_grad(netD_whole, True)
                 optimizer_D_whole.zero_grad()
@@ -105,10 +105,18 @@ def train(args):
 
             output = netG(X)
 
-            real_whole = torch.cat([X[:,0:2,:,:], Y], dim=1)
-            fake_whole = torch.cat([X[:,0:2,:,:], output], dim=1)
-            real_mask = torch.cat([X[:,0:2,:,:]*X[:,3,:,:,], Y*X[:,3,:,:]], dim=1)
-            fake_mask = torch.cat([X[:,0:2,:,:]*X[:,3,:,:], output*X[:,3,:,:]], dim=1)
+            # real_whole = torch.cat([X[:,0:2,:,:], Y], dim=1)
+            # fake_whole = torch.cat([X[:,0:2,:,:], output], dim=1)
+            # real_mask = torch.cat([X[:,0:2,:,:]*X[:,3,:,:], Y*X[:,3,:,:]], dim=1)
+            # fake_mask = torch.cat([X[:,0:2,:,:]*X[:,3,:,:], output*X[:,3,:,:]], dim=1)
+
+            mask_region_1D = torch.unsqueeze(X[:,3,:,:],1)
+            mask_region = torch.cat([mask_region_1D,mask_region_1D,mask_region_1D], dim=1)
+
+            real_whole = torch.cat([X[:,0:3,:,:], Y], dim=1)
+            fake_whole = torch.cat([X[:,0:3,:,:], output], dim=1)
+            real_mask = torch.cat([X[:,0:3,:,:].mul(mask_region), Y.mul(mask_region)], dim=1)
+            fake_mask = torch.cat([X[:,0:3,:,:].mul(mask_region), output.mul(mask_region)], dim=1)
             pred_real_whole = netD_whole(real_whole)
             pred_fake_whole = netD_whole(fake_whole.detach())
             pred_real_mask = netD_mask(real_mask)
@@ -123,10 +131,10 @@ def train(args):
             loss_mask_D = 0.5 * (loss_D_mask_real + loss_D_mask_fake)
 
             if epoch < 0.4 * NUM_EPOCHS:
-                loss_whole_D.backward()
+                loss_whole_D.backward(retain_graph=True)
                 optimizer_D_whole.step()
             else:
-                loss_mask_D.backward()
+                loss_mask_D.backward(retain_graph=True)
                 optimizer_D_mask.step()
 
             L_rc = criterion_L1(output, Y) + (1 - criterion_SSIM(output, Y))

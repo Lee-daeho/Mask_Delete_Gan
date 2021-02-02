@@ -41,7 +41,7 @@ class EditDataset(Dataset):
         origin_image = image_loader(self.origin_path + self.img_lists[idx].split('_')[0] + '.jpg')
         label = bin_image_loader(self.label_path + self.img_lists[idx])
 
-        return torch.cat([self.transform(image), self.transform(origin_image)], dim=1), self.transform(label)
+        return torch.cat([self.transform(image), self.transform(label)]), self.transform(origin_image)
 
 
 def image_loader(img_name):

@@ -25,6 +25,10 @@ class Generator(nn.Module):
         self.middle_conv = self.doubleConv(128,256) #middle
 
         #ADD ATROUS CONVOLUTION BLOCK --> RATE : 2,4,8,16
+        self.at_conv1 = self.AtrousConv(256,256,2)
+        self.at_conv2 = self.AtrousConv(256, 256, 4)
+        self.at_conv3 = self.AtrousConv(256, 256, 8)
+        self.at_conv4 = self.AtrousConv(256, 256, 16)
 
         self.deconv1 = self.deconv(256,128) #upsample
         self.deconv2 = self.deconv(128,64)
@@ -81,6 +85,50 @@ class Generator(nn.Module):
 
         return SENet
 
+    def AtrousConv(self, in_channel, out_channel, dilate):
+
+        AConv = nn.Sequential(
+            nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=1, padding=dilate, dilation=dilate),
+            nn.InstanceNorm2d(out_channel),
+            nn.LeakyReLU()
+        )
+
+        return AConv
+
+    def forward(self, x):
+        down1 = self.conv1(x)       #16, 256, 256
+        pool1 = self.pool(down1)    #16, 128, 128
+        down2 = self.conv2(pool1)   #32, 128, 128
+        pool2 = self.pool(down2)    #32, 64, 64
+        down3 = self.conv3(pool2)   #64, 64, 64
+        pool3 = self.pool(down3)    #64, 32, 32
+        down4 = self.conv4(pool3)   #128, 32, 32
+        pool4 = self.pool(down4)    #128, 16, 16
+
+        middle = self.middle_conv(pool4)  #256, 16, 16
+
+        atrous1 = self.at_conv1(middle)
+        atrous2 = self.at_conv1(atrous1)
+        atrous3 = self.at_conv1(atrous2)
+        atrous4 = self.at_conv1(atrous3)
+
+        up1 = self.deconv1(atrous4)                  #128, 32, 32
+        concat1 = torch.cat([down4, up1], dim=1)    #256, 32, 32
+        conv1 = self.upconv1(concat1)               #128, 32, 32
+        up2 = self.deconv2(conv1)                   #64, 64, 64
+        concat2 = torch.cat([down3, up2], dim=1)    #128, 64, 64
+        conv2 = self.upconv2(concat2)               #64, 64, 64
+        up3 = self.deconv3(conv2)                   #32, 128, 128
+        concat3 = torch.cat([down2, up3], dim=1)    #64, 128, 128
+        conv3 = self.upconv3(concat3)               #32, 128, 128
+        up4 = self.deconv4(conv3)                   #16, 256, 256
+        concat4 = torch.cat([down1, up4], dim=1)    #32, 256, 256
+        conv4 = self.upconv4(concat4)               #16, 256, 256
+
+        out = self.out(conv4)                       #3, 256, 256
+
+        return out
+
 
 class CBR2d(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, stride=1, padding=1, bias=True, norm="bnorm", relu=0.0):
@@ -127,13 +175,13 @@ class Discriminator(nn.Module):
         self.enc5 = CBR2d(8 * nker, out_ch, kernel_size=4, stride=2,
                           padding=1, norm=None, relu=None, bias=False)
 
-        def forward(self, x):
-            x = self.enc1(x)
-            x = self.enc2(x)
-            x = self.enc3(x)
-            x = self.enc4(x)
-            x = self.enc5(x)
+    def forward(self, x):
+        x = self.enc1(x)
+        x = self.enc2(x)
+        x = self.enc3(x)
+        x = self.enc4(x)
+        x = self.enc5(x)
 
-            x = torch.sigmoid(x)
+        x = torch.sigmoid(x)
 
-            return x
+        return x
