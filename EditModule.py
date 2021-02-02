@@ -73,9 +73,9 @@ class Generator(nn.Module):
 
         SENet = nn.Sequential(
             nn.AdaptiveAvgPool2d((1,1)),
-            nn.Linear(in_channel, in_channel/ratio),
+            nn.Linear(in_channel, int(in_channel/ratio)),
             nn.ReLU(),
-            nn.Linear(in_channel/ratio, in_channel),
+            nn.Linear(int(in_channel/ratio), in_channel),
             nn.Sigmoid()
         )
 
