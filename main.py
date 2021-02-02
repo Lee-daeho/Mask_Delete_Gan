@@ -1,5 +1,5 @@
 from MaskModule import autoencoder
-from MaskData import MaskDataset
+from MaskData import MaskDataset, EditDataset
 from EditModule import Discriminator, Generator
 
 import torch
@@ -59,7 +59,7 @@ def train():
     img_list = os.listdir(IMG_FOLDER)
     # mask_list = os.listdir('./data/masks')
 
-    train_set = MaskDataset(IMG_FOLDER, MASK_FOLDER, transform)
+    train_set = EditDataset(IMG_FOLDER, ORG_FOLDER, MASK_FOLDER, transform)
     print(train_set.__len__())
     print('Image Load End')
 
@@ -67,8 +67,8 @@ def train():
 
     total_batch = len(train_loader)
 
-    netD_whole = Discriminator(in_ch=2*3, out_ch=1, nker=64, norm=norm).to(device)
-    netD_mask = Discriminator(in_ch=2*3, out_ch=1, nker=64, norm=norm).to(device)
+    netD_whole = Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm').to(device)
+    netD_mask = Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm').to(device)
 
     criterion_L1 = nn.L1Loss().to(device)
     criterion_BCE = nn.BCEWithLogitsLoss().to(device)
