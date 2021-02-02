@@ -1,6 +1,6 @@
 from MaskModule import autoencoder
 from MaskData import MaskDataset
-from DisModule import Discriminator
+from EditModule import Discriminator, Generator
 
 import torch
 from torchvision import datasets, transforms
@@ -20,7 +20,25 @@ from argparse import ArgumentParser
 
 from util import *
 
+from argparse import ArgumentParser
+
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+parser = ArgumentParser(description = 'mask module')
+
+parser.add_argument('--mode', default='train', choices=['train', 'test'], dest='mode')
+
+parser.add_argument('--dir_checkpoint', default='./checkpoints', dest = 'dir_checkpoint')
+parser.add_argument('--dir_data', default='./data/imgs/train/')
+
+parser.add_argument('--epoch', default=100000, dest='epoch')
+parser.add_argument('--learning_rate', default=1e2, dest='lr')
+parser.add_argument('--epoch', default=100000, dest='epoch')
+parser.add_argument('--epoch', default=100000, dest='epoch')
+
+parser.add_argument('--dir_result', default='./final_results', dest='dir_result')
+
+args = parser.parse_args()
 
 NUM_EPOCHS = 50
 
@@ -30,8 +48,9 @@ transform = transforms.Compose([
 ])
 
 def train():
-    IMG_FOLDER = './data/imgs/ToDaeHoLee/_masked/'
-    MASK_FOLDER = './data/imgs/ToDaeHoLee/_binary/'
+    IMG_FOLDER = './data/imgs/train/_masked/'
+    MASK_FOLDER = './data/imgs/train/_binary/'
+    ORG_FOLDER = './data/imgs/train/_origin/'
     RES_IMG_PATH = './results/'
 
     if not os.path.exists(RES_IMG_PATH):

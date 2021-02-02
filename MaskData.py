@@ -33,3 +33,5 @@ def bin_image_loader(img_name):
     image = Image.open(img_name).convert('1')
 
     return image
+
+class
