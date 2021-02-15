@@ -24,6 +24,7 @@ from util import *
 
 from argparse import ArgumentParser
 
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 transform = transforms.Compose([
@@ -59,17 +60,18 @@ def train(args):
 
     total_batch = len(train_loader)
 
-    netG = Generator().to(device)
-    netD_whole = Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm').to(device)
-    netD_mask = Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm').to(device)
+    netG = nn.DataParallel(Generator()).to(device)
+    
+    netD_whole = nn.DataParallel(Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm')).to(device)
+    netD_mask = nn.DataParallel(Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm')).to(device)
 
     criterion_L1 = nn.L1Loss().to(device)
     criterion_SSIM = pytorch_ssim.SSIM().to(device)
     criterion_BCE = nn.BCEWithLogitsLoss().to(device)
 
     optimG = torch.optim.Adam(netG.parameters(), lr=learning_rate, betas=(0.5, 0.999))
-    optimizer_D_whole = torch.optim.Adam(netD_whole.parameters(), lr=learning_rate)
-    optimizer_D_mask = torch.optim.Adam(netD_mask.parameters(), lr=learning_rate)
+    optimizer_D_whole = torch.optim.Adam(netD_whole.parameters(), lr=learning_rate, betas=(0.5, 0.999))
+    optimizer_D_mask = torch.optim.Adam(netD_mask.parameters(), lr=learning_rate, betas=(0.5, 0.999))
 
     ######################### load model #################################
 
@@ -81,7 +83,8 @@ def train(args):
             netD_whole.train()
         else:
             netD_mask.train()
-
+        
+        loss_G_train = []
         loss_D_whole_real_train = []
         loss_D_whole_fake_train = []
         loss_D_mask_real_train = []
@@ -99,8 +102,6 @@ def train(args):
                 set_requires_grad(netD_mask, True)
                 optimizer_D_mask.zero_grad()
 
-            # backward D_Whole_region
-            # output: generator로 생성된 이미지(I_edit)
 
             output = netG(X)
 
@@ -109,14 +110,13 @@ def train(args):
             # real_mask = torch.cat([X[:,0:2,:,:]*X[:,3,:,:], Y*X[:,3,:,:]], dim=1)
             # fake_mask = torch.cat([X[:,0:2,:,:]*X[:,3,:,:], output*X[:,3,:,:]], dim=1)
 
-            mask_region_1D = torch.unsqueeze(X[:,3,:,:],1)
+            mask_region_1D = torch.unsqueeze(X[:,3,:,:].clone(),1)
             mask_region = torch.cat([mask_region_1D,mask_region_1D,mask_region_1D], dim=1)
 
-            real_whole = torch.cat([X[:,0:3,:,:], Y], dim=1)
-            fake_whole = torch.cat([X[:,0:3,:,:], output], dim=1)
-            real_mask = torch.cat([X[:,0:3,:,:].mul(mask_region), Y.mul(mask_region)], dim=1)
-            fake_mask = torch.cat([X[:,0:3,:,:].mul(mask_region), output.mul(mask_region)], dim=1)
-
+            real_whole = torch.cat([X[:,0:3,:,:].clone(), Y], dim=1)
+            fake_whole = torch.cat([X[:,0:3,:,:].clone(), output], dim=1)
+            real_mask = torch.cat([X[:,0:3,:,:].clone().mul(mask_region), Y.mul(mask_region)], dim=1)
+            fake_mask = torch.cat([X[:,0:3,:,:].clone().mul(mask_region), output.mul(mask_region)], dim=1)
             pred_real_whole = netD_whole(real_whole)
             pred_fake_whole = netD_whole(fake_whole.detach())
             pred_real_mask = netD_mask(real_mask)
@@ -130,12 +130,7 @@ def train(args):
             loss_D_mask_fake = criterion_BCE(pred_fake_mask, torch.zeros_like(pred_fake_mask))
             loss_mask_D = 0.5 * (loss_D_mask_real + loss_D_mask_fake)
 
-            if epoch < 0.4 * NUM_EPOCHS:
-                loss_whole_D.backward(retain_graph=True)
-                optimizer_D_whole.step()
-            else:
-                loss_mask_D.backward(retain_graph=True)
-                optimizer_D_mask.step()
+
 
             if epoch < 0.4 * NUM_EPOCHS:
                 set_requires_grad(netD_whole, False)
@@ -148,9 +143,18 @@ def train(args):
 
             loss_comp = L_rc*100 + 0.6 * loss_whole_D + 1.4 * loss_mask_D
 
-            loss_comp.backward()
+
+            loss_comp.backward(retain_graph=True)
+            if epoch < 0.4 * NUM_EPOCHS:
+                loss_whole_D.backward()
+                optimizer_D_whole.step()
+            else:
+                loss_mask_D.backward()
+                optimizer_D_mask.step()
+            
             optimG.step()
 
+            loss_G_train += [loss_comp.item()]
             loss_D_whole_real_train += [loss_D_whole_real.item()]
             loss_D_whole_fake_train += [loss_D_whole_fake.item()]
             loss_D_mask_real_train += [loss_D_mask_real.item()]
@@ -158,10 +162,11 @@ def train(args):
 
             print("TRAIN: EPOCH %04d | BATCH %04d / %04d | "
                   "L_D_whole_r: %.4f | L_D_whole_f: %.4f | "
-                  "L_D_mask_r: %.4f | L_D_mask_f: %.4f" %
+                  "L_D_mask_r: %.4f | L_D_mask_f: %.4f |"
+                  "L_G: %.4f" %
                   (epoch, batch, total_batch,
                    np.mean(loss_D_whole_real_train), np.mean(loss_D_whole_fake_train),
-                   np.mean(loss_D_mask_real_train), np.mean(loss_D_mask_fake_train)))
+                   np.mean(loss_D_mask_real_train), np.mean(loss_D_mask_fake_train), np.mean(loss_G_train)))
 
             # avg_cost += cost/total_batch
 
@@ -171,7 +176,7 @@ def train(args):
             print('output shape : ', output[0])
             print('save img')
             for i in tqdm(range(X.shape[0]), desc='saving'):
-                save_image(output[i], RES_IMG_PATH + '{}epoch_{}.jpg'.format(epoch, i))
+                save_image(output[i], RES_IMG_PATH + '/{}epoch_{}.jpg'.format(epoch, i))
         if epoch % 99 == 0 and not epoch == 0:
             torch.save(netG, CKP_DIR + '{}_netG.pkl'.format(epoch))
 
@@ -188,7 +193,7 @@ if __name__ == "__main__":
     parser.add_argument('--learning_rate', default=1e2, dest='lr', type=float)
     parser.add_argument('--batch_size', default=2, dest='BATCH_SIZE', type=int)
 
-    parser.add_argument('--dir_result', default='./final_results', dest='dir_result')
+    parser.add_argument('--dir_result', default='./final_results/', dest='dir_result')
 
     args = parser.parse_args()
 

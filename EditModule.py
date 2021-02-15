@@ -21,7 +21,8 @@ class Generator(nn.Module):
         self.conv3 = self.doubleConv(32,64)         #ADD SE block
         self.SE3 = self.SENetwork(64, 16)
         self.conv4 = self.doubleConv(64,128)
-
+      
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
         self.middle_conv = self.doubleConv(128,256) #middle
 
         #ADD ATROUS CONVOLUTION BLOCK --> RATE : 2,4,8,16
@@ -76,7 +77,6 @@ class Generator(nn.Module):
     def SENetwork(self, in_channel, ratio):
 
         SENet = nn.Sequential(
-            nn.AdaptiveAvgPool2d((1,1)),
             nn.Linear(in_channel, int(in_channel/ratio)),
             nn.ReLU(),
             nn.Linear(int(in_channel/ratio), in_channel),
@@ -96,13 +96,25 @@ class Generator(nn.Module):
         return AConv
 
     def forward(self, x):
-        down1 = self.conv1(x)       #16, 256, 256
+        down1 = self.conv1(x)       #16, 256, 256        
         pool1 = self.pool(down1)    #16, 128, 128
-        down2 = self.conv2(pool1)   #32, 128, 128
+        b, c, _, _ = pool1.size()
+        avg_pool1 = self.avg_pool(pool1).view(b,c)
+        SE1 = self.SE1(avg_pool1).view(b,c,1,1)
+        SE1 = pool1 * SE1.expand_as(pool1)
+        down2 = self.conv2(SE1)   #32, 128, 128
         pool2 = self.pool(down2)    #32, 64, 64
+        b, c, _, _ = pool2.size()
+        avg_pool2 = self.avg_pool(pool2).view(b,c)
+        SE2 = self.SE2(avg_pool2).view(b,c,1,1)
+        SE2 = pool2 * SE2.expand_as(pool2)
         down3 = self.conv3(pool2)   #64, 64, 64
         pool3 = self.pool(down3)    #64, 32, 32
-        down4 = self.conv4(pool3)   #128, 32, 32
+        b, c, _, _ = pool3.size()
+        avg_pool3 = self.avg_pool(pool3).view(b,c)
+        SE3 = self.SE3(avg_pool3).view(b,c,1,1)
+        SE3 = pool3 * SE3.expand_as(pool3)
+        down4 = self.conv4(SE3)   #128, 32, 32
         pool4 = self.pool(down4)    #128, 16, 16
 
         middle = self.middle_conv(pool4)  #256, 16, 16
