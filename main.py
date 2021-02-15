@@ -92,7 +92,6 @@ def train(args):
             Y = data[1].to(device)
             ############################## get ground truth data(I_gt) through dataloader. ##############################
 
-            print('x : ',X.shape)
             if epoch < 0.4 * NUM_EPOCHS:
                 set_requires_grad(netD_whole, True)
                 optimizer_D_whole.zero_grad()
@@ -117,6 +116,7 @@ def train(args):
             fake_whole = torch.cat([X[:,0:3,:,:], output], dim=1)
             real_mask = torch.cat([X[:,0:3,:,:].mul(mask_region), Y.mul(mask_region)], dim=1)
             fake_mask = torch.cat([X[:,0:3,:,:].mul(mask_region), output.mul(mask_region)], dim=1)
+
             pred_real_whole = netD_whole(real_whole)
             pred_fake_whole = netD_whole(fake_whole.detach())
             pred_real_mask = netD_mask(real_mask)
@@ -137,13 +137,19 @@ def train(args):
                 loss_mask_D.backward(retain_graph=True)
                 optimizer_D_mask.step()
 
+            if epoch < 0.4 * NUM_EPOCHS:
+                set_requires_grad(netD_whole, False)
+                optimizer_D_whole.zero_grad()
+            else:
+                set_requires_grad(netD_mask, False)
+                optimizer_D_mask.zero_grad()
+
             L_rc = criterion_L1(output, Y) + (1 - criterion_SSIM(output, Y))
 
             loss_comp = L_rc*100 + 0.6 * loss_whole_D + 1.4 * loss_mask_D
 
             loss_comp.backward()
             optimG.step()
-
 
             loss_D_whole_real_train += [loss_D_whole_real.item()]
             loss_D_whole_fake_train += [loss_D_whole_fake.item()]

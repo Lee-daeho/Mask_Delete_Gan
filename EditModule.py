@@ -172,8 +172,10 @@ class Discriminator(nn.Module):
         self.enc4 = CBR2d(4 * nker, 8 * nker, kernel_size=4, stride=2,
                           padding=1, norm=norm, relu=0.2, bias=False)
 
-        self.enc5 = CBR2d(8 * nker, out_ch, kernel_size=4, stride=2,
+        self.enc5 = CBR2d(8 * nker, out_ch, kernel_size=4, stride=1,
                           padding=1, norm=None, relu=None, bias=False)
+
+        self.sm = nn.Sigmoid()
 
     def forward(self, x):
         x = self.enc1(x)
@@ -181,7 +183,5 @@ class Discriminator(nn.Module):
         x = self.enc3(x)
         x = self.enc4(x)
         x = self.enc5(x)
-
-        x = torch.sigmoid(x)
 
         return x
