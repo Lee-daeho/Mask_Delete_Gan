@@ -281,12 +281,9 @@ def finetune(args):
             loss_comp = L_rc * 100 + 0.6 * loss_whole_D + 1.4 * loss_mask_D
 
             loss_comp.backward(retain_graph=True)
-            if epoch < 0.4 * NUM_EPOCHS:
-                loss_whole_D.backward()
-                optimizer_D_whole.step()
-            else:
-                loss_mask_D.backward()
-                optimizer_D_mask.step()
+
+            loss_mask_D.backward()
+            optimizer_D_mask.step()
 
             optimG.step()
 
