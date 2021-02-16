@@ -81,8 +81,12 @@ def train(args):
         netG.train()
         if epoch < 0.4 * NUM_EPOCHS:
             netD_whole.train()
-        else:
+            netD_mask.eval()
+        elif epoch >= 0.4 * NUM_EPOCHS and epoch < 0.8*NUM_EPOCHS:
             netD_mask.train()
+            netD_whole.eval()
+        else:
+            netD_mask.eval()
         
         loss_G_train = []
         loss_D_whole_real_train = []
@@ -98,7 +102,7 @@ def train(args):
             if epoch < 0.4 * NUM_EPOCHS:
                 set_requires_grad(netD_whole, True)
                 optimizer_D_whole.zero_grad()
-            else:
+            elif epoch >= 0.4 * NUM_EPOCHS and epoch < 0.8 * NUM_EPOCHS:
                 set_requires_grad(netD_mask, True)
                 optimizer_D_mask.zero_grad()
 
@@ -145,12 +149,15 @@ def train(args):
 
 
             loss_comp.backward(retain_graph=True)
+
             if epoch < 0.4 * NUM_EPOCHS:
                 loss_whole_D.backward()
                 optimizer_D_whole.step()
-            else:
+            elif epoch >= 0.4 * NUM_EPOCHS and epoch < 0.8 * NUM_EPOCHS:
                 loss_mask_D.backward()
                 optimizer_D_mask.step()
+            else:
+                pass
             
             optimG.step()
 
@@ -178,7 +185,7 @@ def train(args):
             for i in tqdm(range(X.shape[0]), desc='saving'):
                 save_image(output[i], RES_IMG_PATH + '/{}epoch_{}.jpg'.format(epoch, i))
         if epoch % 99 == 0 and not epoch == 0:
-            torch.save(netG, CKP_DIR + '{}_netG.pkl'.format(epoch))
+            torch.save(netG.module.state_dict(), CKP_DIR + '{}_netG.pkl'.format(epoch))
 
 
 def finetune(args):
@@ -211,11 +218,13 @@ def finetune(args):
 
     total_batch = len(train_loader)
 
-    netG = Generator().to(device)
+
+    netG = nn.DataParallel(Generator()).to(device)
     netG = torch.load(PRETRAIN_DIR)
 
-    netD_whole = Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm').to(device)
-    netD_mask = Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm').to(device)
+
+    netD_whole = nn.DataParallel(Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm')).to(device)
+    netD_mask = nn.DataParallel(Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm')).to(device)
 
     criterion_L1 = nn.L1Loss().to(device)
     criterion_SSIM = pytorch_ssim.SSIM().to(device)
