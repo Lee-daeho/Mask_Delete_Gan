@@ -24,7 +24,7 @@ from util import *
 
 from argparse import ArgumentParser
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '0,1,2'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 transform = transforms.Compose([
