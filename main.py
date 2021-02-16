@@ -211,11 +211,11 @@ def finetune(args):
 
     total_batch = len(train_loader)
 
-    netG = nn.DataParallel(Generator()).to(device)
+    netG = Generator().to(device)
     netG = torch.load(PRETRAIN_DIR)
 
-    netD_whole = nn.DataParallel(Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm')).to(device)
-    netD_mask = nn.DataParallel(Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm')).to(device)
+    netD_whole = Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm').to(device)
+    netD_mask = Discriminator(in_ch=2 * 3, out_ch=1, nker=64, norm='bnorm').to(device)
 
     criterion_L1 = nn.L1Loss().to(device)
     criterion_SSIM = pytorch_ssim.SSIM().to(device)
@@ -231,10 +231,7 @@ def finetune(args):
         avg_cost = 0
         i = 0
         netG.train()
-        if epoch < 0.4 * NUM_EPOCHS:
-            netD_whole.train()
-        else:
-            netD_mask.train()
+        netD_mask.train()
 
         loss_G_train = []
         loss_D_whole_real_train = []
@@ -246,12 +243,6 @@ def finetune(args):
             X = data[0].to(device)
             Y = data[1].to(device)
             ############################## get ground truth data(I_gt) through dataloader. ##############################
-
-
-            set_requires_grad(netD_mask, True)
-            optimizer_D_mask.zero_grad()
-            set_requires_grad(netD_whole, False)
-            optimizer_D_whole.zero_grad()
 
             output = netG(X)
 
@@ -280,10 +271,7 @@ def finetune(args):
 
             loss_comp = L_rc * 100 + 0.6 * loss_whole_D + 1.4 * loss_mask_D
 
-            loss_comp.backward(retain_graph=True)
-
-            loss_mask_D.backward()
-            optimizer_D_mask.step()
+            loss_comp.backward()
 
             optimG.step()
 
