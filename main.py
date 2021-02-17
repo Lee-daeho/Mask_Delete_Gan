@@ -1,6 +1,6 @@
 from MaskModule import autoencoder
 from MaskData import MaskDataset, EditDataset
-from EditModule import Discriminator, Generator
+from EditModule import Discriminator, Generator, Vgg19
 
 import torch
 from torchvision import datasets, transforms
@@ -61,6 +61,8 @@ def train(args):
     total_batch = len(train_loader)
 
     netG = nn.DataParallel(Generator()).to(device)
+
+    netperc = Vgg19()
     
     netD_whole = nn.DataParallel(Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm')).to(device)
     netD_mask = nn.DataParallel(Discriminator(in_ch=2*3, out_ch=1, nker=64, norm='bnorm')).to(device)
@@ -68,6 +70,7 @@ def train(args):
     criterion_L1 = nn.L1Loss().to(device)
     criterion_SSIM = pytorch_ssim.SSIM().to(device)
     criterion_BCE = nn.BCEWithLogitsLoss().to(device)
+    criterion_L2 = nn.MSELoss().to(device)
 
     optimG = torch.optim.Adam(netG.parameters(), lr=learning_rate, betas=(0.5, 0.999))
     optimizer_D_whole = torch.optim.Adam(netD_whole.parameters(), lr=learning_rate, betas=(0.5, 0.999))
@@ -141,16 +144,27 @@ def train(args):
 
             L_rc = criterion_L1(output, Y) + (1 - criterion_SSIM(output, Y))
 
-            loss_comp = L_rc*100 + 0.6 * loss_whole_D + 1.4 * loss_mask_D
+            I_edit = netperc(output)
+            I_gt = netperc(Y)
+
+            L_mse = 0
+            for i in range(1,4):
+                L_mse += criterion_L2(I_edit[i], I_gt[i])
+
+
+            loss_comp = (L_rc + L_mse)*100 + 0.3 * loss_whole_D + 0.7 * loss_mask_D
 
 
             loss_comp.backward(retain_graph=True)
-            if epoch < 0.4 * NUM_EPOCHS:
+
+            if epoch > 0.2 * NUM_EPOCHS and epoch < 0.4 * NUM_EPOCHS:
                 loss_whole_D.backward()
                 optimizer_D_whole.step()
-            else:
+            elif epoch >= 0.4 * NUM_EPOCHS:
                 loss_mask_D.backward()
                 optimizer_D_mask.step()
+            else:
+                pass
             
             optimG.step()
 
@@ -178,7 +192,7 @@ def train(args):
             for i in tqdm(range(X.shape[0]), desc='saving'):
                 save_image(output[i], RES_IMG_PATH + '/{}epoch_{}.jpg'.format(epoch, i))
         if epoch % 99 == 0 and not epoch == 0:
-            torch.save(netG, CKP_DIR + '{}_netG.pkl'.format(epoch))
+            torch.save(netG.module.state_dict(), CKP_DIR + '{}_netG.pkl'.format(epoch))
 
 
 def finetune(args):
@@ -231,10 +245,13 @@ def finetune(args):
         avg_cost = 0
         i = 0
         netG.train()
-        if epoch < 0.4 * NUM_EPOCHS:
+        if epoch>0.2*NUM_EPOCHS and epoch < 0.4 * NUM_EPOCHS:
             netD_whole.train()
-        else:
+        elif epoch >= 0.4*NUM_EPOCHS:
             netD_mask.train()
+        else:
+            netD_whole.eval()
+            netD_mask.eval()
 
         loss_G_train = []
         loss_D_whole_real_train = []
@@ -320,14 +337,14 @@ if __name__ == "__main__":
     parser.add_argument('--mode', default='train', choices=['train', 'test', 'finetune'], dest='mode')
     parser.add_argument('--pretrained_path', default='checkpoints990_netG.pkl', dest='pretrained_path')
 
-    parser.add_argument('--dir_checkpoint', default='./checkpoints', dest='dir_checkpoint')
+    parser.add_argument('--dir_checkpoint', default='./new_checkpoints', dest='dir_checkpoint')
     parser.add_argument('--dir_data', default='./data/imgs/train/')
 
     parser.add_argument('--epoch', default=50, dest='epoch', type=int)
     parser.add_argument('--learning_rate', default=1e2, dest='lr', type=float)
     parser.add_argument('--batch_size', default=2, dest='BATCH_SIZE', type=int)
 
-    parser.add_argument('--dir_result', default='./final_results/', dest='dir_result')
+    parser.add_argument('--dir_result', default='./new_final_results/', dest='dir_result')
 
     args = parser.parse_args()
 
