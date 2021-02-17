@@ -327,7 +327,7 @@ def finetune(args):
             print('save img')
             for i in tqdm(range(X.shape[0]), desc='saving'):
                 save_image(output[i], RES_IMG_PATH + '/{}epoch_{}.jpg'.format(epoch + int(PRETRAIN_DIR.split('_')[0].split('s')[1]), i))
-        if epoch % 99 == 0 and not epoch == 0:
+        if epoch % 20 == 0 and not epoch == 0:
             torch.save(netG, CKP_DIR + '/{}_netG.pkl'.format(epoch + int(PRETRAIN_DIR.split('_')[0].split('s')[1])))
 
 if __name__ == "__main__":
